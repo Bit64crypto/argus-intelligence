@@ -32,4 +32,4 @@ jobs:
           git config user.email "pipeline@argus"
           git add feed.json
           git diff --staged --quiet || git commit -m "Daily feed update $(date -u +%Y-%m-%d)"
-          git push
+          git pull --rebase && git push
