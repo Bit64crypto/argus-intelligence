@@ -1,228 +1,144 @@
 """
 Argus Intelligence Pipeline
-Scrapes SEC and ESMA regulatory sources, passes to Claude for analysis,
+Scrapes SEC, CFTC, ESMA, EBA regulatory sources, passes to Claude for analysis,
 outputs feed.json that the live site reads.
 """
 
-import json
-import os
-import re
-import time
+import json, os, re, time
 from datetime import datetime, timezone
 import feedparser
-import requests
 import anthropic
 
 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-# ── SOURCES ────────────────────────────────────────────────────────────
 SOURCES = [
-    {
-        "jurisdiction": "US",
-        "name": "SEC Press Releases",
-        "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&dateb=&owner=include&count=20&search_text=&action=getcurrent&output=atom",
-        "tag": "ENFORCEMENT",
-    },
-    {
-        "jurisdiction": "US",
-        "name": "SEC News",
-        "url": "https://www.sec.gov/rss/news/press.xml",
-        "tag": "ENFORCEMENT",
-    },
-    {
-        "jurisdiction": "US",
-        "name": "CFTC Newsroom",
-        "url": "https://www.cftc.gov/rss/pressreleases.xml",
-        "tag": "MARKET STRUCTURE",
-    },
-    {
-        "jurisdiction": "EU",
-        "name": "ESMA News",
-        "url": "https://www.esma.europa.eu/rss.xml",
-        "tag": "MICA",
-    },
-    {
-        "jurisdiction": "EU",
-        "name": "EBA News",
-        "url": "https://www.eba.europa.eu/rss.xml",
-        "tag": "STABLECOINS",
-    },
+    {"jurisdiction":"US","name":"SEC Press Releases","url":"https://www.sec.gov/rss/news/press.xml","tag":"ENFORCEMENT"},
+    {"jurisdiction":"US","name":"CFTC Newsroom","url":"https://www.cftc.gov/rss/pressreleases.xml","tag":"MARKET STRUCTURE"},
+    {"jurisdiction":"EU","name":"ESMA News","url":"https://www.esma.europa.eu/rss.xml","tag":"MICA"},
+    {"jurisdiction":"EU","name":"EBA News","url":"https://www.eba.europa.eu/rss.xml","tag":"STABLECOINS"},
 ]
 
-# ── CLAUDE ANALYSIS ────────────────────────────────────────────────────
 def analyze_item(title, summary, source_name, jurisdiction):
-    """
-    Ask Claude whether this item is relevant to crypto/digital assets.
-    If yes, return a structured feed item. If no, return None.
-    """
-    prompt = f"""You are analyzing regulatory news for Argus Intelligence, a platform serving institutional clients (banks, funds) entering crypto.
+    prompt = f"""You are analyzing regulatory news for Argus Intelligence, serving institutional clients entering crypto and digital assets.
 
 SOURCE: {source_name} ({jurisdiction})
 TITLE: {title}
 CONTENT: {summary[:1500]}
 
-Determine if this is relevant to crypto, digital assets, stablecoins, DeFi, blockchain, or virtual assets.
+Is this relevant to ANY of: crypto, digital assets, stablecoins, DeFi, blockchain, virtual assets, tokenization, CBDCs, crypto custody, crypto AML/KYC, crypto exchanges, crypto securities law, fintech payments, or digital finance regulation?
 
-If NOT relevant: respond with exactly: IRRELEVANT
+Be INCLUSIVE — if there is ANY connection to digital assets or how traditional finance intersects with crypto, mark it relevant.
 
-If relevant: respond with valid JSON only, no markdown, no explanation:
+If NOT relevant (e.g. purely about physical commodities, non-digital traditional securities with no crypto angle): respond with exactly: IRRELEVANT
+
+If relevant: respond with valid JSON only, no markdown:
 {{
   "relevant": true,
   "urgency": "HIGH" or "MEDIUM" or "LOW",
-  "tag": one of ["ENFORCEMENT", "MARKET STRUCTURE", "STABLECOINS", "LICENSING", "CUSTODY", "AML/CFT", "MICA", "SANCTIONS"],
+  "tag": one of ["ENFORCEMENT","MARKET STRUCTURE","STABLECOINS","LICENSING","CUSTODY","AML/CFT","MICA","SANCTIONS"],
   "title": "concise professional title under 100 chars",
-  "summary": "2-3 sentence institutional-grade summary of what changed and why it matters",
-  "action": "specific recommended action for a bank or fund entering crypto — 1-2 sentences",
-  "affects": [] or list of protocol names from: ["Aave", "Uniswap", "Lido", "MakerDAO", "dYdX", "Tornado Cash"]
+  "summary": "2-3 sentence institutional-grade summary of what changed and why it matters for crypto/digital asset firms",
+  "action": "specific recommended action for a bank or fund with crypto exposure — 1-2 sentences",
+  "affects": [] or list from: ["Aave","Uniswap","Lido","MakerDAO","dYdX","Tornado Cash"]
 }}
 
-Urgency guide:
-- HIGH: immediate compliance deadline, enforcement action, new binding rule
-- MEDIUM: guidance, consultation, proposed rule with future deadline  
-- LOW: general update, speech, non-binding guidance"""
+Urgency: HIGH=enforcement action or binding deadline, MEDIUM=proposed rule or guidance, LOW=speech or non-binding update"""
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=600,
-            messages=[{"role": "user", "content": prompt}]
+            model="claude-sonnet-4-20250514", max_tokens=600,
+            messages=[{"role":"user","content":prompt}]
         )
         text = response.content[0].text.strip()
-
-        if text == "IRRELEVANT" or "IRRELEVANT" in text:
+        if "IRRELEVANT" in text:
             return None
-
-        # Strip any markdown fences if Claude added them
-        text = re.sub(r"```json|```", "", text).strip()
+        text = re.sub(r"```json|```","",text).strip()
         data = json.loads(text)
-
-        if not data.get("relevant"):
-            return None
-
-        return data
-
+        return data if data.get("relevant") else None
     except Exception as e:
         print(f"  Claude error: {e}")
         return None
 
-
-# ── FETCH RSS ──────────────────────────────────────────────────────────
 def fetch_source(source):
-    """Fetch and parse an RSS feed, return list of (title, summary, link) tuples."""
     print(f"  Fetching {source['name']}...")
     try:
         feed = feedparser.parse(source["url"])
         items = []
-        for entry in feed.entries[:8]:  # Check latest 8 items per source
-            title = entry.get("title", "")
-            summary = entry.get("summary", entry.get("description", ""))
-            link = entry.get("link", "")
-            # Clean HTML tags from summary
-            summary = re.sub(r"<[^>]+>", " ", summary).strip()
+        for entry in feed.entries[:10]:
+            title = entry.get("title","")
+            summary = entry.get("summary", entry.get("description",""))
+            link = entry.get("link","")
+            summary = re.sub(r"<[^>]+>"," ",summary).strip()
             if title:
                 items.append((title, summary, link))
         return items
     except Exception as e:
-        print(f"  Error fetching {source['name']}: {e}")
+        print(f"  Error: {e}")
         return []
 
-
-# ── LOAD EXISTING FEED ─────────────────────────────────────────────────
 def load_existing_feed():
     try:
-        with open("feed.json", "r") as f:
+        with open("feed.json","r") as f:
             return json.load(f)
-    except FileNotFoundError:
+    except:
         return []
 
-
-def is_duplicate(title, existing_feed):
-    """Simple dedup — skip if a very similar title already exists."""
-    title_lower = title.lower()
-    for item in existing_feed:
-        existing_lower = item.get("title", "").lower()
-        # Check for 60%+ word overlap
-        words_new = set(title_lower.split())
-        words_old = set(existing_lower.split())
-        if len(words_new) > 0:
-            overlap = len(words_new & words_old) / len(words_new)
-            if overlap > 0.6:
-                return True
+def is_duplicate(title, existing):
+    tl = title.lower()
+    for item in existing:
+        el = item.get("title","").lower()
+        wn, wo = set(tl.split()), set(el.split())
+        if len(wn) > 0 and len(wn & wo) / len(wn) > 0.6:
+            return True
     return False
 
-
-# ── MAIN ───────────────────────────────────────────────────────────────
 def run():
-    print("Argus Intelligence Pipeline starting...")
-    print(f"Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n")
-
-    existing_feed = load_existing_feed()
+    print(f"Argus Pipeline starting — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n")
+    existing = load_existing_feed()
     new_items = []
-    next_id = max((item.get("id", 0) for item in existing_feed), default=0) + 1
+    next_id = max((i.get("id",0) for i in existing), default=0) + 1
 
     for source in SOURCES:
         print(f"\n[{source['jurisdiction']}] {source['name']}")
-        raw_items = fetch_source(source)
-
-        for title, summary, link in raw_items:
-            # Skip duplicates
-            if is_duplicate(title, existing_feed + new_items):
-                print(f"  SKIP (duplicate): {title[:60]}...")
+        for title, summary, link in fetch_source(source):
+            if is_duplicate(title, existing + new_items):
+                print(f"  SKIP: {title[:60]}...")
                 continue
-
             print(f"  Analyzing: {title[:70]}...")
             result = analyze_item(title, summary, source["name"], source["jurisdiction"])
-
             if result is None:
                 print(f"  → IRRELEVANT")
                 continue
-
             print(f"  → RELEVANT [{result['urgency']}] {result['tag']}")
-
-            # Build feed item
-            feed_item = {
-                "id": next_id,
-                "j": source["jurisdiction"],
-                "urgency": result["urgency"],
-                "tag": result["tag"],
+            new_items.append({
+                "id": next_id, "j": source["jurisdiction"],
+                "urgency": result["urgency"], "tag": result["tag"],
                 "time": datetime.now(timezone.utc).strftime("%b %d %Y"),
-                "unread": True,
-                "title": result["title"],
-                "summary": result["summary"],
-                "action": result["action"],
-                "affects": result.get("affects", []),
-                "deadline": result.get("deadline", ""),
+                "unread": True, "title": result["title"],
+                "summary": result["summary"], "action": result["action"],
+                "affects": result.get("affects",[]),
+                "deadline": result.get("deadline",""),
                 "source": f"{source['name']} · {link[:80]}",
-            }
-
-            new_items.append(feed_item)
+            })
             next_id += 1
-
-            # Be polite to the API
-            time.sleep(1)
+            time.sleep(0.5)
 
     if new_items:
-        print(f"\n✓ Found {len(new_items)} new relevant items")
-        # New items go to the top, keep last 50 total
-        updated_feed = new_items + existing_feed
-        updated_feed = updated_feed[:50]
-
-        # Mark old items as read
-        for item in updated_feed[len(new_items):]:
+        print(f"\n✓ {len(new_items)} new relevant items found")
+        updated = new_items + existing
+        for item in updated[len(new_items):]:
             item["unread"] = False
-
-        with open("feed.json", "w") as f:
-            json.dump(updated_feed, f, indent=2)
+        with open("feed.json","w") as f:
+            json.dump(updated[:50], f, indent=2)
         print("✓ feed.json updated")
     else:
-        print("\n— No new relevant items found today")
-        # Still write file to confirm pipeline ran
-        if not existing_feed:
-            with open("feed.json", "w") as f:
+        print("\n— No new items today")
+        # Write fallback so site always has something
+        if not existing:
+            with open("feed.json","w") as f:
                 json.dump([], f)
 
     print("\nPipeline complete.")
-
 
 if __name__ == "__main__":
     run()
