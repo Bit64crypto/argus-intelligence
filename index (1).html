@@ -194,3 +194,72 @@ function bRisk(){$('v-risk').innerHTML=`<div class="rw"><div style="margin-botto
 </script>
 </body>
 </html>
+Messages();
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1000, system:SYS, messages:messages.map(m=>({role:m.role,content:m.content})) })
+    });
+    const data = await res.json();
+    messages.push({ role:'assistant', content: data.content?.[0]?.text || 'No response.' });
+  } catch(e) {
+    messages.push({ role:'assistant', content:'Connection error — check your API key and retry.' });
+  }
+  isLoading = false;
+  renderMessages();
+}
+
+// ── RISK PANEL ─────────────────────────────────────────────────────────
+function renderRisk() {
+  const el = document.getElementById('view-risk');
+  el.innerHTML = `
+    <div class="risk-wrap">
+      <div class="risk-header">
+        <div class="risk-title">Counterparty Risk Monitor</div>
+        <div class="risk-sub">Scores reflect current regulatory exposure · Higher = safer for institutional custody · Updated on regulatory event</div>
+      </div>
+      <div class="risk-grid">
+        ${PROTOCOLS.map((p,i) => {
+          const col = RISK_C[p.risk];
+          const delta = parseFloat(p.delta);
+          return `<div class="risk-card" style="animation-delay:${i*0.07}s"
+            onmouseenter="this.style.borderColor='${hexAlpha(col,.31)}';this.style.boxShadow='0 14px 44px ${hexAlpha(col,.07)}'"
+            onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+            <div class="risk-card-glow" style="background:${col}"></div>
+            <div class="risk-card-top">
+              <div>
+                <div class="risk-card-name">${p.name}</div>
+                <div class="risk-card-type">${p.type}</div>
+              </div>
+              ${uPill(p.risk)}
+            </div>
+            <div class="risk-card-mid">
+              ${ringHTML(p.score, p.risk, 76)}
+              <div style="text-align:right">
+                <div class="risk-delta-n" style="color:${delta>=0?'#00DEB0':'#FF3355'}">${delta>=0?'▲':'▼'} ${Math.abs(delta)}</div>
+                <div class="risk-delta-l">WK CHANGE</div>
+              </div>
+            </div>
+            <div>
+              <div class="risk-exp-label">REGULATORY EXPOSURE</div>
+              <div class="risk-exp-pills">${p.exposure.map(c=>jPill(c)).join('')}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="risk-legend">
+        <span class="legend-label">SCORE LEGEND:</span>
+        ${[['75–100','LOW','#00DEB0','Suitable for institutional custody'],['50–74','MEDIUM','#FFAA00','Monitor actively, legal review advised'],['0–49','HIGH','#FF3355','Avoid for institutional use']].map(([r,l,c,d])=>`
+          <div class="legend-item">
+            <span class="legend-dot" style="background:${c};box-shadow:0 0 6px ${c}"></span>
+            <span class="legend-range" style="color:${c}">${r}</span>
+            <span class="legend-desc">${d}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+</script>
+</body>
+</html>
