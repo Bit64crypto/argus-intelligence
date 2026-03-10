@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Argus Intelligence</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html,body,#root{height:100%;overflow:hidden;background:#05070F;}
+    ::-webkit-scrollbar{width:3px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:#17202F;border-radius:2px;}
+    input::placeholder{color:#3E4D6A;}
+    button{outline:none;font-family:inherit;}
+    @keyframes ping{75%,100%{transform:scale(2.4);opacity:0;}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+    @keyframes blink{0%,100%{opacity:0.15;transform:scale(0.8);}50%{opacity:1;transform:scale(1);}}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ── IMPORTANT: Replace this with your Anthropic API key ──────────────
+    // Get one at https://console.anthropic.com
+    // For production, move this to a backend proxy — never ship a real key in client-side code
+    const ANTHROPIC_API_KEY = "YOUR_API_KEY_HERE";
+    // ─────────────────────────────────────────────────────────────────────
+
+    const T = {
+      bg:"#05070F", surface:"#090C17", card:"#0E1220", cardHi:"#131828",
+      border:"#17202F", borderHi:"#232F48", text:"#E2E8F8", sub:"#7A8AAE",
+      muted:"#3E4D6A", dim:"#1A2438",
+      accent:"#B8FF00", accentLo:"#506900", accentBg:"#B8FF0010",
+      red:"#FF3355", redBg:"#FF335514",
+      amber:"#FFAA00", amberBg:"#FFAA0014",
+      teal:"#00DEB0", tealBg:"#00DEB014",
+      blue:"#3DA5FF", blueBg:"#3DA5FF14",
+      orange:"#FF7040", orangeBg:"#FF704014",
+    };
+    const RISK_C = { LOW:"#00DEB0", MEDIUM:"#FFAA00", HIGH:"#FF3355" };
+
+    const JURISDICTIONS = [
+      { code:"US", label:"United States",  color:"#3DA5FF", src:"SEC · CFTC · FinCEN" },
+      { code:"EU", label:"European Union", color:"#B8FF00", src:"ESMA · EBA · MiCA"   },
+      { code:"SG", label:"Singapore",      color:"#00DEB0", src:"MAS"                 },
+      { code:"UK", label:"United Kingdom", color:"#FFAA00", src:"FCA · PRA"           },
+      { code:"UAE",label:"UAE",            color:"#FF7040", src:"VARA · CBUAE"        },
+    ];
+
+    const PROTOCOLS = [
+      { name:"Aave",    type:"DeFi Lending",   risk:"LOW",    score:82, delta:"+2", exposure:["EU","UK"]               },
+      { name:"Uniswap", type:"DEX Protocol",   risk:"LOW",    score:79, delta:"-1", exposure:["US","EU"]               },
+      { name:"Lido",    type:"Liquid Staking", risk:"MEDIUM", score:61, delta:"-4", exposure:["EU","UK"]               },
+      { name:"MakerDAO",type:"CDP Stablecoin", risk:"MEDIUM", score:58, delta:"-6", exposure:["EU"]                    },
+      { name:"dYdX",    type:"Perps DEX",      risk:"MEDIUM", score:55, delta:"-3", exposure:["US"]                    },
+      { name:"Tornado", type:"Privacy Mixer",  risk:"HIGH",   score:12, delta:"0",  exposure:["US","EU","UK","SG","UAE"]},
+    ];
+
+    const FEED = [
+      {
+        id:1, j:"EU", urgency:"HIGH", time:"2h ago", unread:true, tag:"STABLECOINS",
+        title:"MiCA Art. 45 — €200M/day Stablecoin Cap, Enforcement Binding from Q3 2026",
+        summary:"ESMA published binding technical standards under MiCA Article 45 setting a €200M/day retail transaction cap on all e-money tokens. Issuers must file quarterly volume attestations with national competent authorities. Non-compliance triggers automatic suspension. The standards are directly applicable — no national transposition required.",
+        affects:["MakerDAO","Lido"],
+        action:"Review stablecoin issuance volumes immediately. Legal counsel engagement required before May 1. MakerDAO's DAI and Lido's stETH both within scope pending ESMA classification guidance.",
+        deadline:"May 1, 2026",
+        source:"ESMA Official Journal · Reg (EU) 2023/1114 Art. 45",
+      },
+      {
+        id:2, j:"US", urgency:"HIGH", time:"4h ago", unread:true, tag:"MARKET STRUCTURE",
+        title:"CLARITY Act Senate Markup Stalled — ABA Rejects White House Compromise (Mar 5)",
+        summary:"The American Bankers Association formally rejected the White House-brokered CLARITY Act compromise on March 5, 2026. Senate Banking Committee is targeting mid-to-late March for a second markup attempt. The SEC/CFTC jurisdictional split over digital assets remains legally unresolved, creating acute uncertainty for any institution making custody architecture decisions.",
+        affects:["Uniswap","dYdX"],
+        action:"Freeze custody structure commitments. Do not adopt SEC-only or CFTC-only compliance posture until jurisdiction is resolved. OCC charter route emerging as parallel strategy — monitor April 1 effective date.",
+        deadline:"Late March 2026 (fluid)",
+        source:"Senate Banking Committee · Baker McKenzie · FintechWeekly",
+      },
+      {
+        id:3, j:"US", urgency:"MEDIUM", time:"6h ago", unread:false, tag:"ENFORCEMENT",
+        title:"SEC Staff Bulletin 2026-04 — AMM Protocols at Risk of Broker-Dealer Classification",
+        summary:"SEC guidance clarifies that automated market makers with governance tokens enabling fee extraction may qualify as broker-dealers under the Exchange Act. Protocols where token holders can vote on fee parameters are most exposed. 60-day comment period open. No immediate enforcement action signaled.",
+        affects:["Uniswap","dYdX"],
+        action:"Prepare legal analysis of governance token exposure. File comment if appropriate. Low immediate risk — monitor for enforcement signals during comment period.",
+        deadline:"60-day comment period",
+        source:"SEC.gov Staff Bulletin 2026-04",
+      },
+      {
+        id:4, j:"SG", urgency:"LOW", time:"1d ago", unread:false, tag:"LICENSING",
+        title:"MAS PSN02 — On-Chain Analytics Mandatory for DPT Licensees by Q4 2026",
+        summary:"MAS revised DPT service provider licensing criteria to mandate integration of approved on-chain analytics tools for AML compliance. Three vendors have received MAS approval. Existing licensees have until Q4 2026.",
+        affects:[],
+        action:"Verify analytics tooling against MAS approved vendor list. No protocol exposure identified in current monitored portfolio.",
+        deadline:"Q4 2026",
+        source:"MAS Notice PSN02",
+      },
+      {
+        id:5, j:"UAE", urgency:"LOW", time:"2d ago", unread:false, tag:"CUSTODY",
+        title:"VARA Rulebook V2 — Segregation and Real-Time Proof-of-Reserves Required",
+        summary:"VARA's updated custody rulebook requires full institutional/retail asset segregation and mandates real-time proof-of-reserves reporting for all licensed custodians. Effective January 2027 with a 6-month grace period.",
+        affects:["Aave"],
+        action:"No immediate action. Add to 2027 compliance roadmap. Aave UAE exposure limited but should be monitored.",
+        deadline:"January 2027",
+        source:"VARA Rulebook V2.0",
+      },
+      {
+        id:6, j:"UK", urgency:"MEDIUM", time:"3d ago", unread:false, tag:"AML/CFT",
+        title:"FCA PS26/1 — Travel Rule Threshold Lowered to £0 from June 2026",
+        summary:"FCA has lowered the travel rule reporting threshold to £0, requiring UK-regulated firms to collect and transmit full originator and beneficiary data on every crypto transfer regardless of size. Exceeds FATF guidance.",
+        affects:[],
+        action:"Update transaction monitoring infrastructure before June 1, 2026. Engage operations and compliance teams immediately.",
+        deadline:"June 1, 2026",
+        source:"FCA PS26/1 · MLR 2017",
+      },
+    ];
+
+    // ── ATOMS ──────────────────────────────────────────────────────────
+    function LiveDot({ color, pulse }) {
+      return (
+        <span style={{ position:"relative", display:"inline-flex", alignItems:"center", justifyContent:"center", width:10, height:10, flexShrink:0 }}>
+          {pulse && <span style={{ position:"absolute", inset:0, borderRadius:"50%", background:color, opacity:0.2, animation:"ping 2s cubic-bezier(0,0,0.2,1) infinite" }}/>}
+          <span style={{ width:6, height:6, borderRadius:"50%", background:color, display:"block", boxShadow:`0 0 7px ${color}` }}/>
+        </span>
+      );
+    }
+
+    function Pill({ label, color, dim }) {
+      return (
+        <span style={{
+          fontSize:9, fontWeight:700, letterSpacing:"0.12em",
+          color, background:dim ? `${color}12` : "transparent",
+          border:`1px solid ${color}${dim?"28":"40"}`,
+          padding:"2px 8px", borderRadius:3,
+          fontFamily:"'IBM Plex Mono', monospace", flexShrink:0,
+        }}>{label}</span>
+      );
+    }
+
+    function UPill({ level }) {
+      const c = { HIGH:"#FF3355", MEDIUM:"#FFAA00", LOW:"#00DEB0" }[level];
+      const l = { HIGH:"● HIGH", MEDIUM:"● MED", LOW:"● LOW" }[level];
+      return <Pill label={l} color={c} dim/>;
+    }
+
+    function JPill({ code }) {
+      const j = JURISDICTIONS.find(x => x.code === code);
+      return <Pill label={code} color={j.color} dim/>;
+    }
+
+    function RiskRing({ score, risk, size }) {
+      size = size || 76;
+      const r = (size - 12) / 2;
+      const circ = 2 * Math.PI * r;
+      const filled = (score / 100) * circ;
+      const c = size / 2;
+      const col = RISK_C[risk];
+      return (
+        <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
+          <svg width={size} height={size} style={{ transform:"rotate(-90deg)", display:"block" }}>
+            <circle cx={c} cy={c} r={r} fill="none" stroke={T.dim} strokeWidth={5}/>
+            <circle cx={c} cy={c} r={r} fill="none" stroke={col} strokeWidth={5}
+              strokeDasharray={`${filled} ${circ-filled}`} strokeLinecap="round"
+              style={{ transition:"stroke-dasharray 1.5s cubic-bezier(.4,0,.2,1)", filter:`drop-shadow(0 0 5px ${col}80)` }}
+            />
+          </svg>
+          <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+            <span style={{ fontSize:18, fontWeight:700, color:col, fontFamily:"'IBM Plex Mono', monospace", lineHeight:1 }}>{score}</span>
+            <span style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace" }}>/100</span>
+          </div>
+        </div>
+      );
+    }
+
+    function SectionLabel({ children }) {
+      return (
+        <div style={{
+          fontSize:9, color:T.muted, fontFamily:"'IBM Plex Mono', monospace",
+          letterSpacing:"0.18em", paddingBottom:9,
+          borderBottom:`1px solid ${T.border}`, marginBottom:13,
+        }}>{children}</div>
+      );
+    }
+
+    // ── SIDEBAR ────────────────────────────────────────────────────────
+    function Sidebar({ active, onNav, counts }) {
+      const [utc, setUtc] = useState("");
+      useEffect(() => {
+        const tick = () => {
+          const d = new Date();
+          setUtc(`${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}:${String(d.getUTCSeconds()).padStart(2,"0")}`);
+        };
+        tick();
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
+      }, []);
+
+      const NAV = [
+        { id:"feed", icon:"◈", label:"Intelligence Feed", badge:counts.feed },
+        { id:"desk", icon:"⊡", label:"Analyst Desk",      badge:null        },
+        { id:"risk", icon:"◎", label:"Counterparty Risk", badge:counts.risk },
+      ];
+
+      return (
+        <aside style={{ width:228, flexShrink:0, height:"100vh", background:T.surface, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:"22px 20px 18px", borderBottom:`1px solid ${T.border}` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:5 }}>
+              <span style={{ fontSize:23, fontWeight:900, letterSpacing:"-0.05em", fontFamily:"'Unbounded', sans-serif", background:`linear-gradient(120deg, #B8FF00 0%, #70CC00 100%)`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>ARGUS</span>
+              <LiveDot color={T.accent} pulse/>
+            </div>
+            <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.22em" }}>INTELLIGENCE PLATFORM</div>
+          </div>
+
+          <div style={{ padding:"14px 12px 0" }}>
+            <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.2em", padding:"0 8px", marginBottom:8 }}>MONITOR</div>
+            {NAV.map(item => {
+              const on = active === item.id;
+              return (
+                <button key={item.id} onClick={() => onNav(item.id)} style={{
+                  width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+                  padding:"9px 10px", borderRadius:7, marginBottom:2, cursor:"pointer",
+                  border:`1px solid ${on ? T.accent+"35" : "transparent"}`,
+                  background:on ? T.accentBg : "transparent",
+                  transition:"all .15s",
+                }}
+                onMouseEnter={e => { if(!on) e.currentTarget.style.background="#ffffff05"; }}
+                onMouseLeave={e => { if(!on) e.currentTarget.style.background="transparent"; }}
+                >
+                  <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                    <span style={{ fontSize:13, color:on?T.accent:T.muted, lineHeight:1 }}>{item.icon}</span>
+                    <span style={{ fontSize:11.5, fontFamily:"'Manrope', sans-serif", fontWeight:on?700:500, color:on?T.text:T.sub }}>{item.label}</span>
+                  </div>
+                  {item.badge > 0 && (
+                    <span style={{ fontSize:9, background:T.red, color:"#fff", borderRadius:10, padding:"1px 6px", fontFamily:"'IBM Plex Mono', monospace", fontWeight:700, boxShadow:`0 0 8px ${T.red}60` }}>{item.badge}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ padding:"6px 20px 0" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, margin:"18px 0 12px" }}>
+              <div style={{ flex:1, height:1, background:T.border }}/>
+              <span style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.18em", flexShrink:0 }}>ACTIVE FEEDS</span>
+              <div style={{ flex:1, height:1, background:T.border }}/>
+            </div>
+            {JURISDICTIONS.map(j => (
+              <div key={j.code} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 0", borderBottom:`1px solid ${T.border}` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                  <LiveDot color={j.color} pulse/>
+                  <span style={{ fontSize:11, color:T.sub, fontFamily:"'IBM Plex Mono', monospace", fontWeight:500 }}>{j.code}</span>
+                </div>
+                <span style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.1em" }}>LIVE</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ flex:1 }}/>
+          <div style={{ padding:"14px 20px", borderTop:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:9, fontFamily:"'IBM Plex Mono', monospace", color:T.muted, lineHeight:2 }}>
+              <div style={{ color:T.sub, fontWeight:700 }}>{utc} <span style={{ fontWeight:400, color:T.muted }}>UTC</span></div>
+              <div>13,000+ startups tracked</div>
+              <div style={{ color:T.accentLo }}>5 jurisdictions · 6 protocols</div>
+            </div>
+          </div>
+        </aside>
+      );
+    }
+
+    // ── HEADER ─────────────────────────────────────────────────────────
+    function HeaderBar({ active }) {
+      const META = {
+        feed:{ title:"Intelligence Feed",  sub:"Real-time monitoring · 5 jurisdictions · Updated continuously" },
+        desk:{ title:"Analyst Desk",       sub:"Live Claude intelligence · Full regulatory + protocol context loaded" },
+        risk:{ title:"Counterparty Risk",  sub:"Protocol safety scores · Updated on regulatory event · 6 protocols" },
+      };
+      const { title, sub } = META[active];
+      return (
+        <div style={{ padding:"14px 28px", borderBottom:`1px solid ${T.border}`, background:T.surface, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+          <div>
+            <h1 style={{ fontSize:15, fontWeight:800, color:T.text, fontFamily:"'Manrope', sans-serif", marginBottom:3 }}>{title}</h1>
+            <p style={{ fontSize:10, color:T.muted, fontFamily:"'IBM Plex Mono', monospace" }}>{sub}</p>
+          </div>
+          <div style={{ display:"flex", gap:24 }}>
+            {[
+              [FEED.filter(f=>f.urgency==="HIGH").length,"HIGH ALERTS","#FF3355"],
+              [FEED.filter(f=>f.unread).length,"UNREAD","#FFAA00"],
+              [PROTOCOLS.length,"PROTOCOLS","#00DEB0"],
+              [JURISDICTIONS.length,"FEEDS","#3DA5FF"],
+            ].map(([n,l,c]) => (
+              <div key={l} style={{ textAlign:"center" }}>
+                <div style={{ fontSize:21, fontWeight:800, color:c, fontFamily:"'IBM Plex Mono', monospace", lineHeight:1, textShadow:`0 0 24px ${c}40` }}>{n}</div>
+                <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.14em", marginTop:2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── FEED PANEL ─────────────────────────────────────────────────────
+    function FeedPanel() {
+      const [filter, setFilter] = useState("ALL");
+      const [sel, setSel] = useState(FEED[0]);
+      const list = filter==="ALL" ? FEED : FEED.filter(i=>i.j===filter);
+
+      return (
+        <div style={{ display:"flex", height:"100%", overflow:"hidden" }}>
+          <div style={{ width:388, flexShrink:0, borderRight:`1px solid ${T.border}`, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ padding:"12px 16px", borderBottom:`1px solid ${T.border}`, flexShrink:0 }}>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {["ALL",...JURISDICTIONS.map(j=>j.code)].map(f => {
+                  const j = JURISDICTIONS.find(x=>x.code===f);
+                  const col = j?.color||T.accent;
+                  const on = filter===f;
+                  return <button key={f} onClick={()=>setFilter(f)} style={{ padding:"3px 10px", fontSize:9, borderRadius:4, cursor:"pointer", fontFamily:"'IBM Plex Mono', monospace", fontWeight:700, letterSpacing:"0.1em", border:`1px solid ${on?col:T.border}`, background:on?`${col}18`:"transparent", color:on?col:T.muted, transition:"all .15s" }}>{f}</button>;
+                })}
+              </div>
+            </div>
+            <div style={{ overflowY:"auto", flex:1 }}>
+              {list.map((item, idx) => {
+                const on = sel?.id===item.id;
+                const rc = RISK_C[item.urgency];
+                return (
+                  <div key={item.id} onClick={()=>setSel(item)} style={{ padding:"14px 16px", borderBottom:`1px solid ${T.border}`, borderLeft:`3px solid ${on?rc:"transparent"}`, background:on?`${rc}07`:"transparent", cursor:"pointer", transition:"all .15s", animation:`fadeIn .3s ease ${idx*0.05}s both` }}
+                  onMouseEnter={e=>{if(!on)e.currentTarget.style.background="#ffffff04";}}
+                  onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}
+                  >
+                    <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:8, flexWrap:"wrap" }}>
+                      <JPill code={item.j}/><UPill level={item.urgency}/>
+                      <Pill label={item.tag} color={T.muted}/>
+                      {item.unread && <span style={{ width:5,height:5,borderRadius:"50%",background:T.accent,boxShadow:`0 0 6px ${T.accent}`,display:"inline-block",marginLeft:2 }}/>}
+                      <span style={{ fontSize:9,color:T.muted,fontFamily:"'IBM Plex Mono', monospace",marginLeft:"auto" }}>{item.time}</span>
+                    </div>
+                    <div style={{ fontSize:12.5,fontWeight:700,color:on?T.text:T.sub,fontFamily:"'Manrope', sans-serif",lineHeight:1.4,marginBottom:7 }}>{item.title}</div>
+                    {item.affects.length>0 && (
+                      <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                        {item.affects.map(p=>(
+                          <span key={p} style={{ fontSize:9,color:T.amber,background:T.amberBg,border:`1px solid ${T.amber}28`,borderRadius:3,padding:"1px 7px",fontFamily:"'IBM Plex Mono', monospace" }}>⚡ {p}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto", padding:"32px 36px" }}>
+            {!sel ? (
+              <div style={{ display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",gap:14 }}>
+                <span style={{ fontSize:60,opacity:0.05,color:T.text }}>◈</span>
+                <span style={{ fontFamily:"'IBM Plex Mono', monospace",fontSize:11,color:T.muted }}>Select an alert to view intelligence</span>
+              </div>
+            ) : (
+              <div key={sel.id} style={{ animation:"fadeIn .2s ease" }}>
+                <div style={{ display:"flex",gap:6,marginBottom:16,flexWrap:"wrap" }}>
+                  <JPill code={sel.j}/><UPill level={sel.urgency}/><Pill label={sel.tag} color={T.muted}/>
+                </div>
+                <h2 style={{ fontSize:22,fontWeight:800,color:T.text,fontFamily:"'Manrope', sans-serif",lineHeight:1.3,marginBottom:10,letterSpacing:"-0.015em" }}>{sel.title}</h2>
+                <div style={{ fontSize:10,color:T.muted,fontFamily:"'IBM Plex Mono', monospace",marginBottom:30,display:"flex",gap:12 }}>
+                  <span>{sel.time}</span><span style={{color:T.border}}>·</span><span>SOURCE: {sel.source}</span>
+                </div>
+
+                <div style={{ marginBottom:24 }}>
+                  <SectionLabel>INTELLIGENCE SUMMARY</SectionLabel>
+                  <p style={{ fontSize:13.5,color:T.sub,lineHeight:1.8,fontFamily:"'Manrope', sans-serif" }}>{sel.summary}</p>
+                </div>
+
+                <div style={{ marginBottom:24 }}>
+                  <SectionLabel>RECOMMENDED ACTION</SectionLabel>
+                  <div style={{ background:T.accentBg,border:`1px solid ${T.accent}22`,borderRadius:9,padding:"16px 18px",display:"flex",gap:13,alignItems:"flex-start" }}>
+                    <span style={{ color:T.accent,fontSize:17,flexShrink:0,marginTop:1 }}>→</span>
+                    <p style={{ fontSize:13.5,color:T.text,lineHeight:1.75,fontFamily:"'Manrope', sans-serif" }}>{sel.action}</p>
+                  </div>
+                </div>
+
+                {sel.deadline && (
+                  <div style={{ marginBottom:24 }}>
+                    <SectionLabel>KEY DEADLINE</SectionLabel>
+                    <div style={{ display:"inline-flex",alignItems:"center",gap:10,background:T.redBg,border:`1px solid ${T.red}28`,borderRadius:6,padding:"9px 16px" }}>
+                      <span style={{ fontSize:12,color:T.red }}>⏱</span>
+                      <span style={{ fontSize:12,color:T.red,fontFamily:"'IBM Plex Mono', monospace",fontWeight:700 }}>{sel.deadline}</span>
+                    </div>
+                  </div>
+                )}
+
+                {sel.affects.length>0 && (
+                  <div>
+                    <SectionLabel>PROTOCOL EXPOSURE</SectionLabel>
+                    <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
+                      {sel.affects.map(name => {
+                        const p = PROTOCOLS.find(x=>x.name===name); if(!p) return null;
+                        const r2=11, circ2=2*Math.PI*r2, f2=(p.score/100)*circ2;
+                        return (
+                          <div key={name} style={{ display:"flex",alignItems:"center",justifyContent:"space-between",background:T.card,border:`1px solid ${T.border}`,borderRadius:10,padding:"14px 18px",transition:"border-color .15s" }}
+                          onMouseEnter={e=>e.currentTarget.style.borderColor=RISK_C[p.risk]+"40"}
+                          onMouseLeave={e=>e.currentTarget.style.borderColor=T.border}
+                          >
+                            <div>
+                              <div style={{ fontSize:14,fontWeight:800,color:T.text,fontFamily:"'Manrope', sans-serif",marginBottom:3 }}>{p.name}</div>
+                              <div style={{ fontSize:10,color:T.muted,fontFamily:"'IBM Plex Mono', monospace" }}>{p.type}</div>
+                            </div>
+                            <div style={{ display:"flex",alignItems:"center",gap:14 }}>
+                              <div style={{ textAlign:"right" }}>
+                                <div style={{ fontSize:10,color:RISK_C[p.risk],fontFamily:"'IBM Plex Mono', monospace",fontWeight:700 }}>{p.risk} RISK</div>
+                                <div style={{ fontSize:10,color:T.muted,fontFamily:"'IBM Plex Mono', monospace" }}>Score {p.score}/100</div>
+                              </div>
+                              <div style={{ position:"relative",width:32,height:32 }}>
+                                <svg width={32} height={32} style={{ transform:"rotate(-90deg)",display:"block" }}>
+                                  <circle cx={16} cy={16} r={r2} fill="none" stroke={T.dim} strokeWidth={4}/>
+                                  <circle cx={16} cy={16} r={r2} fill="none" stroke={RISK_C[p.risk]} strokeWidth={4}
+                                    strokeDasharray={`${f2} ${circ2-f2}`} strokeLinecap="round"
+                                    style={{ filter:`drop-shadow(0 0 3px ${RISK_C[p.risk]}88)` }}
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── ANALYST DESK ───────────────────────────────────────────────────
+    const SYS = `You are the Argus Intelligence analyst desk — a senior crypto regulatory intelligence analyst serving institutional clients (banks, funds, corporates entering crypto).
+
+ACTIVE REGULATORY INTELLIGENCE:
+1. EU/MiCA Art.45: €200M/day e-money token retail cap from Q3 2026. Directly applicable. Affects MakerDAO (DAI, score 58/MEDIUM) and Lido (stETH, score 61/MEDIUM).
+2. US CLARITY Act: STALLED as of March 5 2026. ABA rejected White House compromise. Senate Banking targeting late March markup. SEC/CFTC jurisdiction UNRESOLVED. OCC charter route emerging (April 1 rule effective).
+3. US SEC Staff Bulletin 2026-04: AMMs with fee-extraction governance tokens may be broker-dealers. Affects Uniswap (79/LOW) and dYdX (55/MEDIUM). 60-day comment period.
+4. SG MAS PSN02: On-chain analytics mandatory for DPT licensees Q4 2026.
+5. UAE VARA V2: Asset segregation + real-time proof-of-reserves for custodians Jan 2027.
+6. UK FCA PS26/1: Travel rule threshold £0 from June 1 2026.
+
+PROTOCOL RISK SCORES: Aave 82 LOW · Uniswap 79 LOW · Lido 61 MEDIUM · MakerDAO 58 MEDIUM · dYdX 55 MEDIUM · Tornado Cash 12 HIGH (OFAC sanctioned).
+
+RESPONSE STYLE: Direct and institutional. Structure: (1) regulatory situation + jurisdiction, (2) timeline, (3) specific implication, (4) recommended action. No disclaimers. Senior analyst voice.`;
+
+    function DeskPanel() {
+      const [msgs, setMsgs] = useState([{
+        role:"assistant",
+        content:"Argus Intelligence Desk — online.\n\nContext loaded: 6 active regulatory alerts · 6 protocol risk profiles · 5 jurisdiction feeds.\n\nWhat do you need?"
+      }]);
+      const [input, setInput] = useState("");
+      const [loading, setLoading] = useState(false);
+      const bottomRef = useRef(null);
+      useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [msgs]);
+
+      const SUGGS = [
+        "Should we custody assets with Lido given current EU exposure?",
+        "What does the CLARITY Act stall mean for our US trading desk?",
+        "Compare Aave vs MakerDAO for institutional custody risk",
+        "What are our key deadlines this quarter?",
+        "Is Uniswap safe for institutional use given SEC guidance?",
+      ];
+
+      async function send() {
+        if(!input.trim() || loading) return;
+        const um = { role:"user", content:input.trim() };
+        const next = [...msgs, um];
+        setMsgs(next); setInput(""); setLoading(true);
+        try {
+          const res = await fetch("https://api.anthropic.com/v1/messages", {
+            method:"POST",
+            headers:{ "Content-Type":"application/json", "x-api-key":ANTHROPIC_API_KEY, "anthropic-version":"2023-06-01", "anthropic-dangerous-allow-browser":"true" },
+            body:JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1000, system:SYS, messages:next.map(m=>({role:m.role,content:m.content})) }),
+          });
+          const data = await res.json();
+          setMsgs(p=>[...p,{ role:"assistant", content:data.content?.[0]?.text||"No response." }]);
+        } catch(e) {
+          setMsgs(p=>[...p,{ role:"assistant", content:"Connection error — check your API key and retry." }]);
+        }
+        setLoading(false);
+      }
+
+      return (
+        <div style={{ display:"flex", flexDirection:"column", height:"100%" }}>
+          <div style={{ padding:"9px 24px", borderBottom:`1px solid ${T.border}`, background:T.surface, display:"flex", gap:18, alignItems:"center", flexShrink:0, flexWrap:"wrap" }}>
+            <span style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.18em" }}>CONTEXT:</span>
+            {[["6 ALERTS","#FF3355"],["6 PROTOCOLS","#FFAA00"],["5 JURISDICTIONS","#00DEB0"],["CLARITY ACT","#B8FF00"],["MICA Q3 2026","#3DA5FF"]].map(([v,c])=>(
+              <span key={v} style={{ fontSize:8, color:c, fontFamily:"'IBM Plex Mono', monospace", fontWeight:700, letterSpacing:"0.1em" }}>● {v}</span>
+            ))}
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto", padding:"28px 32px" }}>
+            {msgs.map((m,i) => (
+              <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:m.role==="user"?"flex-end":"flex-start", marginBottom:22, animation:"fadeIn .2s ease" }}>
+                <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.16em", marginBottom:5 }}>
+                  {m.role==="user"?"YOU":"◈ ARGUS INTELLIGENCE"}
+                </div>
+                <div style={{ maxWidth:"78%", background:m.role==="user"?T.accentBg:T.card, border:`1px solid ${m.role==="user"?T.accent+"28":T.border}`, borderRadius:m.role==="user"?"12px 12px 3px 12px":"3px 12px 12px 12px", padding:"14px 18px", fontSize:13.5, lineHeight:1.78, color:m.role==="user"?T.accent:T.sub, fontFamily:"'Manrope', sans-serif", whiteSpace:"pre-wrap" }}>
+                  {m.content}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", marginBottom:22 }}>
+                <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.16em", marginBottom:5 }}>◈ ARGUS INTELLIGENCE</div>
+                <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:"3px 12px 12px 12px", padding:"14px 20px", display:"flex", gap:5, alignItems:"center" }}>
+                  {[0,1,2].map(i=>(
+                    <span key={i} style={{ width:5,height:5,borderRadius:"50%",background:T.accent,display:"block",animation:`blink 1.2s ease ${i*0.22}s infinite` }}/>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef}/>
+          </div>
+
+          {msgs.length<=1 && (
+            <div style={{ padding:"0 32px 14px" }}>
+              <div style={{ fontSize:8, color:T.muted, fontFamily:"'IBM Plex Mono', monospace", letterSpacing:"0.16em", marginBottom:8 }}>SUGGESTED QUERIES</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {SUGGS.map(s=>(
+                  <button key={s} onClick={()=>setInput(s)} style={{ fontSize:11.5, fontFamily:"'Manrope', sans-serif", fontWeight:500, color:T.sub, background:T.card, border:`1px solid ${T.border}`, borderRadius:7, padding:"7px 13px", cursor:"pointer", transition:"all .15s", textAlign:"left" }}
+                  onMouseEnter={e=>{e.target.style.borderColor=T.accent;e.target.style.color=T.accent;}}
+                  onMouseLeave={e=>{e.target.style.borderColor=T.border;e.target.style.color=T.sub;}}
+                  >{s}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ padding:"14px 32px 28px", borderTop:`1px solid ${T.border}` }}>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
+                placeholder="Ask about any regulation, protocol, or jurisdiction…"
+                style={{ flex:1, background:T.card, border:`1px solid ${T.borderHi}`, borderRadius:9, padding:"12px 16px", color:T.text, fontSize:13.5, fontFamily:"'Manrope', sans-serif", outline:"none", transition:"border-color .15s" }}
+                onFocus={e=>e.target.style.borderColor=T.accent}
+                onBlur={e=>e.target.style.borderColor=T.borderHi}
+              />
+              <button onClick={send} disabled={loading||!input.trim()} style={{ padding:"12px 22px", borderRadius:9, cursor:loading?"not-allowed":"pointer", background:(loading||!input.trim())?T.dim:T.accent, border:"none", color:(loading||!input.trim())?T.muted:"#05070F", fontWeight:800, fontSize:15, fontFamily:"'IBM Plex Mono', monospace", transition:"all .15s", flexShrink:0, boxShadow:(!loading&&input.trim())?`0 0 24px ${T.accent}40`:"none" }}>→</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── RISK PANEL ─────────────────────────────────────────────────────
+    function RiskPanel() {
+      return (
+        <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
+          <div style={{ marginBottom:24 }}>
+            <h2 style={{ fontSize:17, fontWeight:800, color:T.text, fontFamily:"'Manrope', sans-serif", marginBottom:4 }}>Counterparty Risk Monitor</h2>
+            <p style={{ fontSize:10, color:T.muted, fontFamily:"'IBM Plex Mono', monospace" }}>Scores reflect current regulatory exposure · Higher = safer for institutional custody · Updated on regulatory event</p>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+            {PROTOCOLS.map((p, i) => (
+              <div key={p.name} style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"22px", transition:"all .2s", position:"relative", overflow:"hidden", animation:`fadeIn .35s ease ${i*0.07}s both` }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=RISK_C[p.risk]+"50";e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow=`0 14px 44px ${RISK_C[p.risk]}12`;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}
+              >
+                <div style={{ position:"absolute",top:-25,right:-25,width:90,height:90,borderRadius:"50%",background:RISK_C[p.risk],opacity:0.05,pointerEvents:"none" }}/>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18 }}>
+                  <div>
+                    <div style={{ fontSize:16,fontWeight:800,color:T.text,fontFamily:"'Manrope', sans-serif",letterSpacing:"-0.01em",marginBottom:3 }}>{p.name}</div>
+                    <div style={{ fontSize:10,color:T.muted,fontFamily:"'IBM Plex Mono', monospace" }}>{p.type}</div>
+                  </div>
+                  <UPill level={p.risk}/>
+                </div>
+                <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
+                  <RiskRing score={p.score} risk={p.risk} size={76}/>
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:16,fontWeight:800,fontFamily:"'IBM Plex Mono', monospace",color:parseFloat(p.delta)>=0?T.teal:T.red,marginBottom:3 }}>
+                      {parseFloat(p.delta)>=0?"▲":"▼"} {Math.abs(parseFloat(p.delta))}
+                    </div>
+                    <div style={{ fontSize:8,color:T.muted,fontFamily:"'IBM Plex Mono', monospace",letterSpacing:"0.1em" }}>WK CHANGE</div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize:8,color:T.muted,fontFamily:"'IBM Plex Mono', monospace",letterSpacing:"0.14em",marginBottom:7 }}>REGULATORY EXPOSURE</div>
+                  <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+                    {p.exposure.map(code=><JPill key={code} code={code}/>)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop:22, background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:"14px 22px", display:"flex", gap:28, alignItems:"center", flexWrap:"wrap" }}>
+            <span style={{ fontSize:8,color:T.muted,fontFamily:"'IBM Plex Mono', monospace",letterSpacing:"0.14em" }}>SCORE LEGEND:</span>
+            {[["75–100","LOW",T.teal,"Suitable for institutional custody"],["50–74","MEDIUM",T.amber,"Monitor actively, legal review advised"],["0–49","HIGH",T.red,"Avoid for institutional use"]].map(([r,l,c,d])=>(
+              <div key={l} style={{ display:"flex",alignItems:"center",gap:8 }}>
+                <span style={{ width:7,height:7,borderRadius:"50%",background:c,display:"block",boxShadow:`0 0 6px ${c}` }}/>
+                <span style={{ fontSize:10,color:c,fontFamily:"'IBM Plex Mono', monospace",fontWeight:700 }}>{r}</span>
+                <span style={{ fontSize:10,color:T.muted,fontFamily:"'Manrope', sans-serif" }}>{d}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ── ROOT ───────────────────────────────────────────────────────────
+    function Argus() {
+      const [active, setActive] = useState("feed");
+      const counts = { feed:FEED.filter(f=>f.unread).length, risk:PROTOCOLS.filter(p=>p.risk==="HIGH").length };
+      return (
+        <div style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden", background:T.bg, backgroundImage:`radial-gradient(circle, ${T.border} 1px, transparent 1px)`, backgroundSize:"26px 26px" }}>
+          <Sidebar active={active} onNav={setActive} counts={counts}/>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+            <HeaderBar active={active}/>
+            <div style={{ flex:1, overflow:"hidden" }}>
+              {active==="feed" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><FeedPanel/></div>}
+              {active==="desk" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><DeskPanel/></div>}
+              {active==="risk" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><RiskPanel/></div>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<Argus/>);
+  </script>
+</body>
+</html>
