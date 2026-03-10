@@ -1,0 +1,35 @@
+name: Argus Daily Intelligence Pipeline
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # Runs every day at 6am UTC
+  workflow_dispatch:        # Also lets you trigger it manually from GitHub
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic requests feedparser
+
+      - name: Run scraper
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python pipeline/scrape.py
+
+      - name: Commit updated feed
+        run: |
+          git config user.name "Argus Pipeline"
+          git config user.email "pipeline@argus"
+          git add feed.json
+          git diff --staged --quiet || git commit -m "Daily feed update $(date -u +%Y-%m-%d)"
+          git push

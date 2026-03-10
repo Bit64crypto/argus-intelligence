@@ -65,7 +65,8 @@
       { name:"Tornado", type:"Privacy Mixer",  risk:"HIGH",   score:12, delta:"0",  exposure:["US","EU","UK","SG","UAE"]},
     ];
 
-    const FEED = [
+    // ── FALLBACK FEED (shown until feed.json loads) ────────────────────
+    const FALLBACK_FEED = [
       {
         id:1, j:"EU", urgency:"HIGH", time:"2h ago", unread:true, tag:"STABLECOINS",
         title:"MiCA Art. 45 — €200M/day Stablecoin Cap, Enforcement Binding from Q3 2026",
@@ -275,9 +276,9 @@
     }
 
     // ── HEADER ─────────────────────────────────────────────────────────
-    function HeaderBar({ active }) {
+    function HeaderBar({ active, lastUpdated }) {
       const META = {
-        feed:{ title:"Intelligence Feed",  sub:"Real-time monitoring · 5 jurisdictions · Updated continuously" },
+        feed:{ title:"Intelligence Feed",  sub:`Real-time monitoring · 5 jurisdictions · ${lastUpdated ? "Updated " + lastUpdated : "Updated continuously"}` },
         desk:{ title:"Analyst Desk",       sub:"Live Claude intelligence · Full regulatory + protocol context loaded" },
         risk:{ title:"Counterparty Risk",  sub:"Protocol safety scores · Updated on regulatory event · 6 protocols" },
       };
@@ -306,10 +307,11 @@
     }
 
     // ── FEED PANEL ─────────────────────────────────────────────────────
-    function FeedPanel() {
+    function FeedPanel({ feed }) {
       const [filter, setFilter] = useState("ALL");
-      const [sel, setSel] = useState(FEED[0]);
-      const list = filter==="ALL" ? FEED : FEED.filter(i=>i.j===filter);
+      const [sel, setSel] = useState(null);
+      useEffect(() => { if(feed && feed.length > 0) setSel(feed[0]); }, [feed]);
+      const list = filter==="ALL" ? feed : feed.filter(i=>i.j===filter);
 
       return (
         <div style={{ display:"flex", height:"100%", overflow:"hidden" }}>
@@ -607,14 +609,30 @@ RESPONSE STYLE: Direct and institutional. Structure: (1) regulatory situation + 
     // ── ROOT ───────────────────────────────────────────────────────────
     function Argus() {
       const [active, setActive] = useState("feed");
+      const [FEED, setFeed] = useState(FALLBACK_FEED);
+      const [lastUpdated, setLastUpdated] = useState(null);
+
+      // Load live feed.json on startup
+      useEffect(() => {
+        fetch("feed.json?t=" + Date.now())
+          .then(r => r.json())
+          .then(data => {
+            if (Array.isArray(data) && data.length > 0) {
+              setFeed(data);
+              setLastUpdated(new Date().toLocaleDateString("en-GB", { day:"numeric", month:"short", year:"numeric" }));
+            }
+          })
+          .catch(() => { /* silently use fallback */ });
+      }, []);
+
       const counts = { feed:FEED.filter(f=>f.unread).length, risk:PROTOCOLS.filter(p=>p.risk==="HIGH").length };
       return (
         <div style={{ display:"flex", height:"100vh", width:"100vw", overflow:"hidden", background:T.bg, backgroundImage:`radial-gradient(circle, ${T.border} 1px, transparent 1px)`, backgroundSize:"26px 26px" }}>
           <Sidebar active={active} onNav={setActive} counts={counts}/>
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-            <HeaderBar active={active}/>
+            <HeaderBar active={active} lastUpdated={lastUpdated}/>
             <div style={{ flex:1, overflow:"hidden" }}>
-              {active==="feed" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><FeedPanel/></div>}
+              {active==="feed" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><FeedPanel feed={FEED}/></div>}
               {active==="desk" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><DeskPanel/></div>}
               {active==="risk" && <div style={{ height:"100%", animation:"fadeIn .2s ease" }}><RiskPanel/></div>}
             </div>
