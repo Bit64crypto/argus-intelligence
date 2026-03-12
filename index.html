@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Argus Intelligence</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:#04060E;}
+::-webkit-scrollbar{width:2px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:#1A2438;}
+button{outline:none;cursor:pointer;border:none;background:none;font-family:inherit;}
+input{font-family:inherit;}
+input::placeholder{color:#364055;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+@keyframes ping{100%{transform:scale(2.4);opacity:0;}}
+@keyframes blink{0%,100%{opacity:.2;}50%{opacity:1;}}
+
+:root{
+  --bg:#04060E;--s1:#060910;--s2:#080C1A;--s3:#0C1222;
+  --border:#111B2E;--b2:#192540;
+  --text:#ECE7D8;--sub:#6A7994;--muted:#344059;--dim:#09101F;
+  --g:#8BFF2E;--g2:#5BBF18;--gborder:rgba(139,255,46,.2);--gdim:rgba(139,255,46,.05);
+  --red:#FF3850;--redbg:rgba(255,56,80,.07);
+  --amber:#FFAB2C;--amberbg:rgba(255,171,44,.07);
+  --teal:#2ED8C2;--blue:#4A9BFF;
+  --serif:'Cormorant Garamond',serif;
+  --sans:'DM Sans',sans-serif;
+  --mono:'IBM Plex Mono',monospace;
+}
+
+/* ── LAYOUT ── */
+#app{display:flex;flex-direction:column;height:100vh;width:100vw;overflow:hidden;}
+#accent{height:2px;background:linear-gradient(90deg,transparent 0%,var(--g) 25%,var(--g2) 75%,transparent 100%);flex-shrink:0;}
+#body{display:flex;flex:1;overflow:hidden;}
+#sidebar{width:196px;flex-shrink:0;height:100%;background:var(--s1);border-right:1px solid var(--border);display:flex;flex-direction:column;}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#topbar{height:46px;padding:0 22px;border-bottom:1px solid var(--border);background:var(--s1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+#content{flex:1;overflow:hidden;}
+
+/* ── WORDMARK ── */
+.wm{padding:16px 15px 13px;border-bottom:1px solid var(--border);}
+.wm-row{display:flex;align-items:center;gap:9px;}
+.wm-dot{position:relative;width:7px;height:7px;flex-shrink:0;}
+.wm-dot-c{width:7px;height:7px;border-radius:50%;background:var(--g);box-shadow:0 0 7px var(--g);display:block;}
+.wm-dot-p{position:absolute;inset:-2px;border-radius:50%;background:var(--g);opacity:.2;animation:ping 2.8s ease-out infinite;}
+.wm-name{font-family:var(--serif);font-size:22px;font-weight:700;letter-spacing:.12em;color:var(--text);}
+.wm-sub{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.22em;margin-top:5px;text-transform:uppercase;}
+
+/* ── NAV ── */
+.nav{padding:10px 10px 0;}
+.nav-lbl{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.2em;padding:0 7px;margin-bottom:5px;text-transform:uppercase;}
+.nb{width:100%;display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border-radius:4px;margin-bottom:1px;border:1px solid transparent;transition:all .12s;}
+.nb:hover{background:rgba(255,255,255,.02);}
+.nb.on{background:var(--gdim);border-color:var(--gborder);}
+.nb-l{display:flex;align-items:center;gap:8px;}
+.nb-ic{font-size:10px;color:var(--muted);width:12px;text-align:center;}
+.nb.on .nb-ic{color:var(--g);}
+.nb-tx{font-size:11.5px;font-family:var(--sans);font-weight:500;color:var(--sub);}
+.nb.on .nb-tx{color:var(--text);font-weight:600;}
+.nbdg{font-size:8px;background:var(--red);color:#fff;border-radius:2px;padding:1px 5px;font-family:var(--mono);font-weight:600;min-width:16px;text-align:center;}
+
+/* ── FEEDS ── */
+.feeds-h{display:flex;align-items:center;gap:7px;padding:12px 15px 8px;margin-top:2px;}
+.fl-sep{flex:1;height:1px;background:var(--border);}
+.fl-lbl{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.18em;text-transform:uppercase;}
+.jrow{display:flex;align-items:center;justify-content:space-between;padding:5px 15px;}
+.jrow-l{display:flex;align-items:center;gap:7px;}
+.jdot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.jcode{font-size:10px;color:var(--sub);font-family:var(--mono);font-weight:500;}
+.jst{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em;}
+
+/* ── SIDEBAR FOOTER ── */
+.sf{padding:11px 15px;border-top:1px solid var(--border);margin-top:auto;}
+.sf-utc{font-size:12px;color:var(--sub);font-family:var(--mono);font-weight:500;}
+.sf-meta{font-size:8px;color:var(--muted);font-family:var(--mono);line-height:1.9;margin-top:3px;}
+
+/* ── TOPBAR ── */
+.tb-l{display:flex;flex-direction:column;gap:1px;}
+.tb-title{font-size:13px;font-weight:600;color:var(--text);font-family:var(--sans);}
+.tb-sub{font-size:9px;color:var(--muted);font-family:var(--mono);}
+.tb-stats{display:flex;align-items:stretch;}
+.stat-item{padding:0 14px;border-left:1px solid var(--border);text-align:right;}
+.stat-n{font-size:18px;font-weight:600;font-family:var(--mono);line-height:1.1;}
+.stat-l{font-size:7px;color:var(--muted);font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;margin-top:1px;}
+
+/* ── PILL ── */
+.pill{font-size:8px;font-weight:600;letter-spacing:.1em;padding:2px 6px;border-radius:2px;font-family:var(--mono);display:inline-block;border:1px solid;text-transform:uppercase;}
+
+/* ── FEED WRAPPER ── */
+.fw{display:flex;height:100%;overflow:hidden;}
+
+/* ── FILTER RAIL ── */
+.fr{width:84px;flex-shrink:0;border-right:1px solid var(--border);padding:11px 7px;display:flex;flex-direction:column;gap:2px;background:var(--s1);overflow-y:auto;}
+.fr-lbl{font-size:7px;color:var(--muted);font-family:var(--mono);letter-spacing:.18em;padding:0 3px;margin-bottom:3px;text-transform:uppercase;}
+.fr-lbl.mt{margin-top:10px;}
+.fjbtn{width:100%;padding:5px 3px;border-radius:3px;border:1px solid transparent;font-size:9px;font-family:var(--mono);font-weight:600;letter-spacing:.1em;transition:all .12s;text-align:center;display:block;}
+.fjbtn:hover{opacity:.7;}
+
+/* ── FEED LIST ── */
+.fl{width:336px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.fl-hd{padding:9px 13px;border-bottom:1px solid var(--border);background:var(--s1);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.fl-hd-t{font-size:10px;color:var(--sub);font-family:var(--mono);font-weight:500;}
+.fl-hd-c{font-size:9px;color:var(--muted);font-family:var(--mono);}
+.fi-list{overflow-y:auto;flex:1;}
+.fi{padding:10px 13px;border-bottom:1px solid var(--border);border-left:2px solid transparent;cursor:pointer;transition:background .1s,border-color .1s;animation:fadeUp .2s ease both;}
+.fi:hover{background:rgba(255,255,255,.015);}
+.fi.on{background:rgba(139,255,46,.025);}
+.fi-top{display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:nowrap;overflow:hidden;}
+.fi-time{font-size:8px;color:var(--muted);font-family:var(--mono);margin-left:auto;flex-shrink:0;padding-left:4px;}
+.fi-title{font-size:12.5px;font-weight:500;color:var(--sub);font-family:var(--sans);line-height:1.42;margin-bottom:5px;}
+.fi.on .fi-title{color:var(--text);}
+.udot{width:4px;height:4px;border-radius:50%;background:var(--g);display:inline-block;flex-shrink:0;}
+.achip{font-size:8px;color:var(--amber);background:var(--amberbg);border:1px solid rgba(255,171,44,.18);border-radius:2px;padding:1px 5px;font-family:var(--mono);font-weight:600;}
+
+/* ── FEED DETAIL ── */
+.fd{flex:1;overflow:hidden;display:flex;flex-direction:column;min-width:0;}
+.fd-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:9px;}
+.fd-scroll{flex:1;overflow-y:auto;}
+.fd-doc{padding:26px 30px 20px;}
+.fd-ref{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.16em;margin-bottom:14px;display:flex;justify-content:space-between;}
+.fd-pills{display:flex;gap:5px;margin-bottom:13px;flex-wrap:wrap;}
+.fd-title{font-family:var(--serif);font-size:30px;font-weight:700;color:var(--text);line-height:1.2;margin-bottom:11px;letter-spacing:-.01em;}
+.fd-meta{font-size:9px;color:var(--muted);font-family:var(--mono);margin-bottom:18px;display:flex;gap:10px;}
+.fd-div{height:1px;background:var(--border);margin-bottom:18px;}
+.sec-lbl{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.2em;padding-bottom:7px;border-bottom:1px solid var(--border);margin-bottom:10px;text-transform:uppercase;}
+.sblk{margin-bottom:18px;}
+.fd-text{font-size:13.5px;color:var(--sub);line-height:1.76;font-family:var(--sans);}
+.abox{background:var(--gdim);border-left:2px solid var(--g);border-top:1px solid var(--gborder);border-right:1px solid var(--gborder);border-bottom:1px solid var(--gborder);border-radius:0 4px 4px 0;padding:12px 16px;display:flex;gap:11px;}
+.abox-arr{color:var(--g);font-size:13px;flex-shrink:0;margin-top:3px;font-family:var(--mono);}
+.abox-text{font-size:13.5px;color:var(--text);line-height:1.72;font-family:var(--sans);}
+.dbox{display:inline-flex;align-items:center;gap:8px;background:var(--redbg);border:1px solid rgba(255,56,80,.18);border-radius:3px;padding:7px 12px;}
+.pcard{display:flex;align-items:center;justify-content:space-between;background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:11px 14px;margin-bottom:7px;transition:border-color .12s;}
+.fd-foot{padding:12px 30px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--s1);}
+.fd-src{font-size:9px;color:var(--muted);font-family:var(--mono);}
+.ask-btn{font-size:10px;font-family:var(--mono);font-weight:600;letter-spacing:.1em;color:var(--g);border:1px solid var(--gborder);border-radius:3px;padding:5px 13px;background:var(--gdim);transition:all .12s;text-transform:uppercase;}
+.ask-btn:hover{background:rgba(139,255,46,.1);}
+
+/* ── DESK ── */
+.dw{display:flex;flex-direction:column;height:100%;}
+.ctx{padding:7px 20px;border-bottom:1px solid var(--border);background:var(--s1);display:flex;gap:14px;align-items:center;flex-shrink:0;flex-wrap:wrap;}
+.ctx-lbl{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.2em;text-transform:uppercase;}
+.ctx-tag{font-size:8px;font-family:var(--mono);font-weight:600;letter-spacing:.1em;}
+.msgs{flex:1;overflow-y:auto;padding:18px 22px;}
+.mw{display:flex;flex-direction:column;margin-bottom:15px;animation:fadeUp .18s ease;}
+.mw.user{align-items:flex-end;}
+.mw.assistant{align-items:flex-start;}
+.mfrom{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.16em;margin-bottom:4px;text-transform:uppercase;}
+.mbub{max-width:76%;padding:11px 15px;font-size:13.5px;line-height:1.7;font-family:var(--sans);white-space:pre-wrap;}
+.mbub.user{background:var(--gdim);border:1px solid var(--gborder);border-radius:10px 10px 2px 10px;color:var(--g);}
+.mbub.assistant{background:var(--s2);border:1px solid var(--border);border-radius:2px 10px 10px 10px;color:var(--sub);}
+.tbub{background:var(--s2);border:1px solid var(--border);border-radius:2px 10px 10px 10px;padding:11px 16px;display:flex;gap:4px;align-items:center;}
+.tdot{width:4px;height:4px;border-radius:50%;background:var(--g);}
+.suggs{padding:0 22px 9px;}
+.sg-lbl{font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.2em;margin-bottom:6px;text-transform:uppercase;}
+.sg-btn{font-size:12px;font-family:var(--sans);font-weight:400;color:var(--sub);background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:6px 12px;transition:all .12s;text-align:left;margin:0 4px 4px 0;display:inline-block;}
+.sg-btn:hover{border-color:var(--g);color:var(--g);}
+.ir{padding:11px 22px 18px;border-top:1px solid var(--border);display:flex;gap:7px;}
+.ci{flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:5px;padding:10px 14px;color:var(--text);font-size:13.5px;font-family:var(--sans);outline:none;transition:border-color .12s;}
+.ci:focus{border-color:var(--g);}
+.sb{padding:10px 18px;border-radius:5px;font-weight:600;font-size:13px;font-family:var(--mono);transition:all .15s;flex-shrink:0;}
+.sb.on{background:var(--g);color:#04060E;}
+.sb.off{background:var(--dim);color:var(--muted);cursor:not-allowed;}
+
+/* ── RISK ── */
+.rw{padding:18px 20px;overflow-y:auto;height:100%;}
+.rw-hd{margin-bottom:14px;}
+.rw-title{font-family:var(--serif);font-size:21px;font-weight:700;color:var(--text);margin-bottom:3px;}
+.rw-sub{font-size:9px;color:var(--muted);font-family:var(--mono);}
+.rgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+.rcard{background:var(--s2);border:1px solid var(--border);border-radius:5px;padding:15px;transition:all .18s;position:relative;overflow:hidden;animation:fadeUp .28s ease both;}
+.rcard:hover{transform:translateY(-2px);}
+.rcard-glow{position:absolute;top:-40px;right:-40px;width:110px;height:110px;border-radius:50%;opacity:.04;pointer-events:none;}
+.rleg{background:var(--s2);border:1px solid var(--border);border-radius:4px;padding:10px 16px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;}
+.ring-wrap{position:relative;flex-shrink:0;}
+.ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="accent"></div>
+  <div id="body">
+    <aside id="sidebar">
+      <div class="wm">
+        <div class="wm-row">
+          <div class="wm-dot"><span class="wm-dot-p"></span><span class="wm-dot-c"></span></div>
+          <span class="wm-name">ARGUS</span>
+        </div>
+        <div class="wm-sub">Intelligence Platform</div>
+      </div>
+      <div class="nav">
+        <div class="nav-lbl">Monitor</div>
+        <button class="nb on" data-view="feed" onclick="sv('feed')">
+          <div class="nb-l"><span class="nb-ic">◈</span><span class="nb-tx">Intelligence Feed</span></div>
+          <span class="nbdg" id="badge-feed"></span>
+        </button>
+        <button class="nb" data-view="desk" onclick="sv('desk')">
+          <div class="nb-l"><span class="nb-ic">⊡</span><span class="nb-tx">Analyst Desk</span></div>
+        </button>
+        <button class="nb" data-view="risk" onclick="sv('risk')">
+          <div class="nb-l"><span class="nb-ic">◎</span><span class="nb-tx">Counterparty Risk</span></div>
+          <span class="nbdg" id="badge-risk"></span>
+        </button>
+      </div>
+      <div>
+        <div class="feeds-h"><div class="fl-sep"></div><span class="fl-lbl">Live Feeds</span><div class="fl-sep"></div></div>
+        <div id="jrows"></div>
+      </div>
+      <div class="sf">
+        <div class="sf-utc" id="utc">00:00:00 UTC</div>
+        <div class="sf-meta">5 jurisdictions · 6 protocols<br><span style="color:var(--g2)">Pipeline · Daily 06:00 UTC</span></div>
+      </div>
+    </aside>
+    <div id="main">
+      <div id="topbar">
+        <div class="tb-l">
+          <div class="tb-title" id="tb-title">Intelligence Feed</div>
+          <div class="tb-sub" id="tb-sub">Real-time regulatory monitoring · 5 jurisdictions</div>
+        </div>
+        <div class="tb-stats" id="tb-stats"></div>
+      </div>
+      <div id="content">
+        <div id="view-feed" style="height:100%"></div>
+        <div id="view-desk" style="height:100%;display:none"></div>
+        <div id="view-risk" style="height:100%;display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const ANTHROPIC_API_KEY = "YOUR_API_KEY_HERE";
+
+const J=[{code:"US",color:"#4A9BFF"},{code:"EU",color:"#8BFF2E"},{code:"SG",color:"#2ED8C2"},{code:"UK",color:"#FFAB2C"},{code:"UAE",color:"#FF6B3A"}];
+const RC={LOW:"#2ED8C2",MEDIUM:"#FFAB2C",HIGH:"#FF3850"};
+const PROTOCOLS=[
+  {name:"Aave",    type:"DeFi Lending",   risk:"LOW",   score:82,delta:2, exp:["EU","UK"]},
+  {name:"Uniswap", type:"DEX Protocol",   risk:"LOW",   score:79,delta:-1,exp:["US","EU"]},
+  {name:"Lido",    type:"Liquid Staking", risk:"MEDIUM",score:61,delta:-4,exp:["EU","UK"]},
+  {name:"MakerDAO",type:"CDP Stablecoin", risk:"MEDIUM",score:58,delta:-6,exp:["EU"]},
+  {name:"dYdX",    type:"Perps DEX",      risk:"MEDIUM",score:55,delta:-3,exp:["US"]},
+  {name:"Tornado", type:"Privacy Mixer",  risk:"HIGH",  score:12,delta:0, exp:["US","EU","UK","SG","UAE"]}
+];
+const FALLBACK=[
+  {id:1,j:"EU",urgency:"HIGH",time:"Mar 10 2026",ref:"ARG-EU-2026-001",unread:true,tag:"STABLECOINS",
+   title:"MiCA Art. 45 — €200M/day Stablecoin Cap Binding from Q3 2026",
+   summary:"ESMA published binding technical standards under MiCA Article 45 setting a €200M/day retail transaction cap on all e-money tokens. Non-compliance triggers automatic suspension. Directly applicable — no national transposition required.",
+   affects:["MakerDAO","Lido"],action:"Review stablecoin issuance volumes immediately. Legal counsel engagement required before May 1. MakerDAO DAI and Lido stETH both within scope pending ESMA classification guidance.",deadline:"May 1, 2026",source:"ESMA Official Journal · Reg (EU) 2023/1114 Art. 45"},
+  {id:2,j:"US",urgency:"HIGH",time:"Mar 10 2026",ref:"ARG-US-2026-001",unread:true,tag:"MARKET STRUCTURE",
+   title:"CLARITY Act Senate Markup Stalled — ABA Rejects White House Compromise",
+   summary:"The ABA formally rejected the White House-brokered CLARITY Act compromise on March 5, 2026. SEC/CFTC jurisdictional split over digital assets remains legally unresolved, creating acute uncertainty for custody architecture decisions. Senate Banking Committee targeting late March for second markup.",
+   affects:["Uniswap","dYdX"],action:"Freeze custody structure commitments. Do not adopt SEC-only or CFTC-only compliance posture until jurisdiction is resolved. Monitor OCC charter route — April 1 rule effective date.",deadline:"Late March 2026",source:"Senate Banking Committee · Baker McKenzie"},
+  {id:3,j:"US",urgency:"MEDIUM",time:"Mar 10 2026",ref:"ARG-US-2026-002",unread:false,tag:"ENFORCEMENT",
+   title:"SEC Staff Bulletin 2026-04 — AMMs at Risk of Broker-Dealer Classification",
+   summary:"SEC guidance clarifies that AMMs with governance tokens enabling fee extraction may qualify as broker-dealers under the Exchange Act. 60-day comment period open. Protocols where token holders vote on fee parameters are most exposed.",
+   affects:["Uniswap","dYdX"],action:"Prepare legal analysis of governance token exposure. File comment if appropriate. Low immediate risk — monitor for enforcement signals during comment period.",deadline:"60-day comment period",source:"SEC.gov Staff Bulletin 2026-04"},
+  {id:4,j:"UK",urgency:"MEDIUM",time:"Mar 9 2026",ref:"ARG-UK-2026-001",unread:false,tag:"AML/CFT",
+   title:"FCA PS26/1 — Travel Rule Threshold Lowered to £0 from June 2026",
+   summary:"FCA lowered the travel rule threshold to £0, requiring UK-regulated firms to collect full originator and beneficiary data on every crypto transfer regardless of size. Exceeds FATF guidance. Failure triggers enforcement under MLR 2017.",
+   affects:[],action:"Update transaction monitoring infrastructure before June 1, 2026. Engage operations and compliance teams immediately — technical implementation typically requires 3–4 months.",deadline:"June 1, 2026",source:"FCA PS26/1 · MLR 2017"},
+  {id:5,j:"SG",urgency:"LOW",time:"Mar 8 2026",ref:"ARG-SG-2026-001",unread:false,tag:"LICENSING",
+   title:"MAS PSN02 — On-Chain Analytics Mandatory for DPT Licensees Q4 2026",
+   summary:"MAS revised DPT licensing criteria to mandate approved on-chain analytics tools for AML compliance. Three vendors have received MAS approval. Existing licensees have until Q4 2026.",
+   affects:[],action:"Verify analytics tooling against MAS approved vendor list. No current protocol exposure identified.",deadline:"Q4 2026",source:"MAS Notice PSN02"},
+  {id:6,j:"UAE",urgency:"LOW",time:"Mar 7 2026",ref:"ARG-UAE-2026-001",unread:false,tag:"CUSTODY",
+   title:"VARA Rulebook V2 — Real-Time Proof-of-Reserves Required January 2027",
+   summary:"VARA updated custody rulebook requires full asset segregation and real-time proof-of-reserves for all licensed custodians. Effective January 2027 with 6-month grace period for existing licensees.",
+   affects:["Aave"],action:"No immediate action required. Add to 2027 compliance roadmap. Aave UAE exposure limited but should be monitored.",deadline:"January 2027",source:"VARA Rulebook V2.0"}
+];
+const SYS=`You are the Argus Intelligence analyst desk — a senior crypto regulatory intelligence analyst serving institutional clients.
+ACTIVE ALERTS: MiCA Art.45 €200M/day cap Q3 2026 (MakerDAO/Lido). CLARITY Act STALLED Mar 5 2026. SEC Bulletin 2026-04 AMM broker-dealer risk. MAS PSN02 analytics Q4 2026. VARA V2 Jan 2027. FCA PS26/1 £0 travel rule Jun 2026.
+SCORES: Aave 82 LOW · Uniswap 79 LOW · Lido 61 MEDIUM · MakerDAO 58 MEDIUM · dYdX 55 MEDIUM · Tornado 12 HIGH.
+STYLE: Direct, institutional, senior analyst voice. No disclaimers. Structure: situation → timeline → implication → action.`;
+const SUGGS=["Should we custody assets with Lido given EU exposure?","What does the CLARITY Act stall mean for our US trading desk?","Compare Aave vs MakerDAO for institutional custody","What compliance deadlines do we face this quarter?"];
+const HDR={feed:{t:"Intelligence Feed",s:"Real-time regulatory monitoring · 5 jurisdictions"},desk:{t:"Analyst Desk",s:"Live Claude intelligence · Full regulatory context loaded"},risk:{t:"Counterparty Risk",s:"Protocol safety scores · Updated on regulatory events · 6 protocols"}};
+
+let FEED=[...FALLBACK],selId=FEED[0].id,filt="ALL",urgFilt="ALL",view="feed",msgs=[],loading=false;
+
+function ha(hex,a){const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return `rgba(${r},${g},${b},${a})`;}
+function jc(c){return(J.find(x=>x.code===c)||{color:"#888"}).color;}
+function pill(l,c,dim){return `<span class="pill" style="color:${c};background:${dim?ha(c,.07):'transparent'};border-color:${ha(c,dim?.18:.26)}">${l}</span>`;}
+function up(lv){return pill({HIGH:"HIGH",MEDIUM:"MED",LOW:"LOW"}[lv],RC[lv],true);}
+function jp(c){return pill(c,jc(c),true);}
+function esc(t){return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function ring(score,risk,sz){
+  sz=sz||62;const r=(sz-8)/2,ci=2*Math.PI*r,f=(score/100)*ci,cx=sz/2,col=RC[risk];
+  return `<div class="ring-wrap" style="width:${sz}px;height:${sz}px"><svg width="${sz}" height="${sz}" style="transform:rotate(-90deg);display:block"><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="#101828" stroke-width="3.5"/><circle cx="${cx}" cy="${cx}" r="${r}" fill="none" stroke="${col}" stroke-width="3.5" stroke-dasharray="${f} ${ci-f}" stroke-linecap="round"/></svg><div class="ring-label"><span style="font-size:14px;font-weight:600;color:${col};font-family:var(--mono);line-height:1">${score}</span><span style="font-size:7px;color:var(--muted);font-family:var(--mono)">/100</span></div></div>`;}
+
+function updateBadges(){
+  const u=FEED.filter(f=>f.unread).length,h=PROTOCOLS.filter(p=>p.risk==='HIGH').length;
+  const bf=document.getElementById('badge-feed'),br=document.getElementById('badge-risk');
+  if(bf){bf.textContent=u;bf.style.display=u>0?'':'none';}
+  if(br){br.textContent=h;br.style.display=h>0?'':'none';}
+}
+function buildStats(){
+  const items=[[FEED.filter(f=>f.urgency==='HIGH').length,'High','#FF3850'],[FEED.filter(f=>f.unread).length,'Unread','#FFAB2C'],[PROTOCOLS.length,'Protocols','#2ED8C2'],[J.length,'Feeds','#4A9BFF']];
+  document.getElementById('tb-stats').innerHTML=items.map(([n,l,c])=>`<div class="stat-item"><div class="stat-n" style="color:${c}">${n}</div><div class="stat-l">${l}</div></div>`).join('');
+}
+function buildJrows(){
+  document.getElementById('jrows').innerHTML=J.map(j=>`<div class="jrow"><div class="jrow-l"><span class="jdot" style="background:${j.color};box-shadow:0 0 5px ${j.color}"></span><span class="jcode">${j.code}</span></div><span class="jst">LIVE</span></div>`).join('');
+}
+function sv(v){
+  view=v;
+  ['feed','desk','risk'].forEach(id=>{
+    document.getElementById('view-'+id).style.display=id===v?'':'none';
+    document.querySelector(`.nb[data-view="${id}"]`).classList.toggle('on',id===v);
+  });
+  document.getElementById('tb-title').textContent=HDR[v].t;
+  document.getElementById('tb-sub').textContent=HDR[v].s;
+}
+function startClock(){
+  const t=()=>{const d=new Date(),e=document.getElementById('utc');if(e)e.textContent=[d.getUTCHours(),d.getUTCMinutes(),d.getUTCSeconds()].map(n=>String(n).padStart(2,'0')).join(':')+' UTC';};
+  t();setInterval(t,1000);
+}
+
+// ── FEED ──
+function renderFeed(){
+  document.getElementById('view-feed').innerHTML=`<div class="fw"><div class="fr" id="fr"></div><div class="fl"><div class="fl-hd"><span class="fl-hd-t" id="fl-count">0</span><span class="fl-hd-c"> ALERTS</span></div><div class="fi-list" id="fil"></div></div><div class="fd"><div class="fd-scroll" id="fd-scroll"><div id="fd"></div></div><div class="fd-foot" id="fd-foot" style="display:none"></div></div></div>`;
+  buildFilters();buildItems();buildDetail();
+}
+function buildFilters(){
+  const el=document.getElementById('fr');if(!el)return;
+  let h='<div class="fr-lbl">JUR</div>';
+  ['ALL',...J.map(j=>j.code)].forEach(f=>{
+    const on=filt===f,c=f==='ALL'?'#8BFF2E':jc(f);
+    h+=`<button class="fjbtn" onclick="setF('${f}')" style="color:${on?c:ha(c,.4)};border-color:${on?ha(c,.28):'transparent'};background:${on?ha(c,.08):'transparent'}">${f}</button>`;
+  });
+  h+='<div class="fr-lbl mt">URGENCY</div>';
+  [['ALL','#6A7994'],['HIGH',RC.HIGH],['MEDIUM',RC.MEDIUM],['LOW',RC.LOW]].forEach(([u,c])=>{
+    const key=u,on=urgFilt===key;
+    h+=`<button class="fjbtn" onclick="setU('${key}')" style="color:${on?c:ha(c,.4)};border-color:${on?ha(c,.28):'transparent'};background:${on?ha(c,.08):'transparent'}">${u==='MEDIUM'?'MED':u}</button>`;
+  });
+  el.innerHTML=h;
+}
+function setF(f){filt=f;buildFilters();buildItems();}
+function setU(u){urgFilt=u;buildFilters();buildItems();}
+function getList(){
+  let l=FEED;
+  if(filt!=='ALL')l=l.filter(i=>i.j===filt);
+  if(urgFilt!=='ALL')l=l.filter(i=>i.urgency===urgFilt);
+  return l;
+}
+function buildItems(){
+  const el=document.getElementById('fil'),fc=document.getElementById('fl-count');if(!el)return;
+  const list=getList();
+  if(fc)fc.textContent=list.length;
+  el.innerHTML=list.map((item,idx)=>{
+    const rc=RC[item.urgency],on=item.id===selId;
+    return `<div class="fi${on?' on':''}" style="animation-delay:${idx*.04}s;border-left-color:${on?rc:'transparent'}" onclick="sel(${item.id})">
+      <div class="fi-top">${jp(item.j)}${up(item.urgency)}${pill(item.tag,'var(--muted)',false)}${item.unread?'<span class="udot"></span>':''}<span class="fi-time">${item.time}</span></div>
+      <div class="fi-title">${item.title}</div>
+      ${item.affects&&item.affects.length?`<div style="display:flex;gap:3px;flex-wrap:wrap">${item.affects.map(p=>`<span class="achip">⚡ ${p}</span>`).join('')}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function sel(id){selId=id;buildItems();buildDetail();}
+function buildDetail(){
+  const el=document.getElementById('fd'),foot=document.getElementById('fd-foot');if(!el)return;
+  const item=FEED.find(f=>f.id===selId);
+  if(!item){
+    el.innerHTML=`<div class="fd-empty"><span style="font-family:var(--serif);font-size:52px;color:var(--border);letter-spacing:.12em">ARGUS</span><span style="font-size:9px;color:var(--muted);font-family:var(--mono);letter-spacing:.16em">SELECT AN ALERT</span></div>`;
+    if(foot)foot.style.display='none';
+    return;
+  }
+  const r2=10,ci2=2*Math.PI*r2;
+  el.innerHTML=`<div class="fd-doc" style="animation:fadeUp .2s ease">
+    <div class="fd-ref"><span>REF: ${item.ref}</span><span>RESTRICTED — INSTITUTIONAL</span></div>
+    <div class="fd-pills">${jp(item.j)}${up(item.urgency)}${pill(item.tag,'var(--muted)',false)}</div>
+    <div class="fd-title">${item.title}</div>
+    <div class="fd-meta"><span>${item.time}</span><span style="color:var(--border)">·</span><span>${item.source}</span></div>
+    <div class="fd-div"></div>
+    <div class="sblk"><div class="sec-lbl">Intelligence Summary</div><p class="fd-text">${item.summary}</p></div>
+    <div class="sblk"><div class="sec-lbl">Recommended Action</div><div class="abox"><span class="abox-arr">→</span><p class="abox-text">${item.action}</p></div></div>
+    ${item.deadline?`<div class="sblk"><div class="sec-lbl">Key Deadline</div><div class="dbox"><span style="color:var(--red);font-family:var(--mono);font-size:11px">⏱</span><span style="font-size:11px;color:var(--red);font-family:var(--mono);font-weight:600;letter-spacing:.05em">${item.deadline}</span></div></div>`:''}
+    ${item.affects&&item.affects.length?`<div class="sblk"><div class="sec-lbl">Protocol Exposure</div>${item.affects.map(name=>{
+      const p=PROTOCOLS.find(x=>x.name===name);if(!p)return '';
+      const col=RC[p.risk],f2=(p.score/100)*ci2;
+      return `<div class="pcard" onmouseenter="this.style.borderColor='${ha(col,.25)}'" onmouseleave="this.style.borderColor='var(--border)'">
+        <div><div style="font-size:14px;font-weight:600;color:var(--text);font-family:var(--sans);margin-bottom:2px">${p.name}</div><div style="font-size:9px;color:var(--muted);font-family:var(--mono)">${p.type}</div></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="text-align:right"><div style="font-size:9px;color:${col};font-family:var(--mono);font-weight:600;margin-bottom:1px">${p.risk} RISK</div><div style="font-size:9px;color:var(--muted);font-family:var(--mono)">Score ${p.score}/100</div></div>
+          <div style="position:relative;width:28px;height:28px"><svg width="28" height="28" style="transform:rotate(-90deg)"><circle cx="14" cy="14" r="${r2}" fill="none" stroke="#101828" stroke-width="3"/><circle cx="14" cy="14" r="${r2}" fill="none" stroke="${col}" stroke-width="3" stroke-dasharray="${f2} ${ci2-f2}" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>`;
+    }).join('')}</div>`:''}
+  </div>`;
+  if(foot){
+    foot.style.display='flex';
+    foot.innerHTML=`<div class="fd-src">SOURCE: ${item.source}</div><button class="ask-btn" onclick="askAnalyst(${item.id})">Ask Analyst →</button>`;
+  }
+}
+function askAnalyst(id){
+  const item=FEED.find(f=>f.id===id);if(!item)return;
+  sv('desk');
+  setTimeout(()=>{
+    const ci=document.getElementById('ci');
+    if(ci){ci.value=`Analyze the "${item.title}" alert — key implications for our institution?`;ci.dispatchEvent(new Event('input'));ci.focus();}
+  },60);
+}
+
+// ── DESK ──
+function renderDesk(){
+  msgs=[{role:'assistant',content:'Argus Intelligence Desk — online.\n\nContext loaded: 6 active regulatory alerts · 6 protocol risk profiles · 5 jurisdiction feeds.\n\nWhat do you need?'}];
+  document.getElementById('view-desk').innerHTML=`<div class="dw">
+    <div class="ctx"><span class="ctx-lbl">Context:</span>${[['6 ALERTS','#FF3850'],['6 PROTOCOLS','#FFAB2C'],['5 FEEDS','#2ED8C2'],['CLARITY ACT','#8BFF2E'],['MiCA Q3 2026','#4A9BFF']].map(([v,c])=>`<span class="ctx-tag" style="color:${c}">● ${v}</span>`).join('')}</div>
+    <div class="msgs" id="msgs"></div>
+    <div class="suggs" id="suggs"><div class="sg-lbl" style="margin-bottom:6px">Suggested queries</div><div>${SUGGS.map(s=>`<button class="sg-btn" onclick="fq(this)">${s}</button>`).join('')}</div></div>
+    <div class="ir"><input class="ci" id="ci" placeholder="Ask about any regulation, protocol, or jurisdiction…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send();}"/><button class="sb off" id="sb" onclick="send()">→</button></div>
+  </div>`;
+  renderMsgs();
+  document.getElementById('ci').addEventListener('input',e=>{const b=document.getElementById('sb');if(b)b.className='sb '+(e.target.value.trim()?'on':'off');});
+}
+function fq(btn){const i=document.getElementById('ci');if(i){i.value=btn.textContent;i.dispatchEvent(new Event('input'));i.focus();}}
+function renderMsgs(){
+  const el=document.getElementById('msgs');if(!el)return;
+  el.innerHTML=msgs.map(m=>`<div class="mw ${m.role}"><div class="mfrom">${m.role==='user'?'You':'◈ Argus Intelligence'}</div><div class="mbub ${m.role}">${esc(m.content)}</div></div>`).join('');
+  if(loading)el.innerHTML+=`<div class="mw assistant"><div class="mfrom">◈ Argus Intelligence</div><div class="tbub">${[0,1,2].map(i=>`<span class="tdot" style="animation:blink 1.2s ease ${i*.22}s infinite"></span>`).join('')}</div></div>`;
+  el.scrollTop=el.scrollHeight;
+  const s=document.getElementById('suggs');if(s)s.style.display=msgs.some(m=>m.role==='user')?'none':'';
+}
+async function send(){
+  const inp=document.getElementById('ci');if(!inp||!inp.value.trim()||loading)return;
+  const txt=inp.value.trim();inp.value='';
+  document.getElementById('sb').className='sb off';
+  msgs.push({role:'user',content:txt});loading=true;renderMsgs();
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:msgs.map(m=>({role:m.role,content:m.content}))})});
+    const data=await res.json();
+    msgs.push({role:'assistant',content:data.content?.[0]?.text||'No response.'});
+  }catch(e){msgs.push({role:'assistant',content:'Connection error — check your API key and retry.'});}
+  loading=false;renderMsgs();
+}
+
+// ── RISK ──
+function renderRisk(){
+  document.getElementById('view-risk').innerHTML=`<div class="rw">
+    <div class="rw-hd"><div class="rw-title">Counterparty Risk Monitor</div><div class="rw-sub">Scores reflect current regulatory exposure · Higher = safer for institutional custody · Updated on regulatory events</div></div>
+    <div class="rgrid">${PROTOCOLS.map((p,i)=>{
+      const col=RC[p.risk],d=p.delta;
+      return `<div class="rcard" style="animation-delay:${i*.06}s" onmouseenter="this.style.borderColor='${ha(col,.28)}';this.style.boxShadow='0 8px 28px ${ha(col,.06)}'" onmouseleave="this.style.borderColor='var(--border)';this.style.boxShadow='none'">
+        <div class="rcard-glow" style="background:${col}"></div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:11px">
+          <div><div style="font-size:15px;font-weight:600;color:var(--text);font-family:var(--sans);margin-bottom:2px">${p.name}</div><div style="font-size:9px;color:var(--muted);font-family:var(--mono)">${p.type}</div></div>
+          ${up(p.risk)}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+          ${ring(p.score,p.risk,62)}
+          <div style="text-align:right">
+            <div style="font-size:14px;font-weight:600;font-family:var(--mono);color:${d>0?'#2ED8C2':d<0?'#FF3850':'var(--muted)'};margin-bottom:2px">${d>0?'▲ '+d:d<0?'▼ '+Math.abs(d):'—'}</div>
+            <div style="font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase">Wk Delta</div>
+          </div>
+        </div>
+        <div><div style="font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.14em;margin-bottom:5px;text-transform:uppercase">Exposure</div><div style="display:flex;gap:3px;flex-wrap:wrap">${p.exp.map(c=>jp(c)).join('')}</div></div>
+      </div>`;
+    }).join('')}</div>
+    <div class="rleg">
+      <span style="font-size:8px;color:var(--muted);font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase">Score legend:</span>
+      ${[['75–100','#2ED8C2','Institutional custody safe'],['50–74','#FFAB2C','Monitor — legal review advised'],['0–49','#FF3850','Avoid institutional use']].map(([r,c,d])=>`<div style="display:flex;align-items:center;gap:7px"><span style="width:6px;height:6px;border-radius:50%;background:${c};display:block"></span><span style="font-size:9px;color:${c};font-family:var(--mono);font-weight:600">${r}</span><span style="font-size:9px;color:var(--muted);font-family:var(--sans)">${d}</span></div>`).join('')}
+    </div>
+  </div>`;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  buildJrows();buildStats();renderFeed();renderDesk();renderRisk();startClock();updateBadges();
+  fetch('feed.json?t='+Date.now()).then(r=>r.json()).then(d=>{
+    if(Array.isArray(d)&&d.length>0){
+      FEED=d.map((item,i)=>({...item,ref:item.ref||'ARG-'+item.j+'-2026-'+(100+i)}));
+      selId=FEED[0].id;renderFeed();buildStats();updateBadges();
+      document.getElementById('tb-sub').textContent='Real-time monitoring · Updated '+new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+    }
+  }).catch(()=>{});
+});
+</script>
+</body>
+</html>
